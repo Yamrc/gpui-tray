@@ -1,0 +1,16 @@
+[package]
+name = "tray-macos"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui-tray = { path = "../tray" }
+anyhow.workspace = true
+gpui.workspace = true
+cocoa = "0.26"
+objc = "0.2"
+
+[dev-dependencies]
+serial_test = "3.3"
