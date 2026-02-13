@@ -10,7 +10,7 @@ use crate::util::encode_wide;
 use crate::window::WM_USER_TRAYICON;
 use std::sync::atomic::{AtomicU32, Ordering};
 use windows::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
+    NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW, Shell_NotifyIconW,
 };
 
 static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -27,6 +27,7 @@ pub struct WindowsTray {
     pub(crate) tray_id: u32,
     pub(crate) hwnd: HWND,
     pub(crate) visible: bool,
+    pub(crate) registered: bool,
 }
 
 impl WindowsTray {
@@ -36,26 +37,21 @@ impl WindowsTray {
             tray_id: 0,
             hwnd: HWND(std::ptr::null_mut()),
             visible: false,
+            registered: false,
         }
     }
 
     /// Set or update the tray for the application
     pub fn set_tray(app: &mut App, config: WindowsTrayConfig) {
-        log::info!("Setting up Windows tray...");
-
-        // Get or create the global tray state
         if !app.has_global::<WindowsTrayState>() {
-            log::info!("Creating new WindowsTrayState global");
+            log::debug!("Creating new WindowsTrayState global");
             app.set_global(WindowsTrayState::new());
         }
 
-        // Update the tray using update_global
         app.update_global::<WindowsTrayState, _>(|tray_state, _cx| {
-            log::info!("Updating tray via global");
+            log::debug!("Updating tray via global");
             tray_state.update_tray(config);
         });
-
-        log::info!("Windows tray setup complete");
     }
 
     pub(crate) fn create_internal(&mut self, config: &WindowsTrayConfig) {
@@ -63,14 +59,14 @@ impl WindowsTray {
         self.tray_id = tray_id;
         self.visible = config.visible;
 
+        // TODO: Refactor create/update logic
         if !config.visible {
             log::info!("Tray not visible, skipping creation");
             return;
         }
 
-        log::info!("Creating Windows tray with ID: {}", tray_id);
+        log::debug!("Creating Windows tray with ID: {}", tray_id);
 
-        // Create the tray window
         self.hwnd = crate::window::create_tray_window();
 
         if self.hwnd.is_invalid() {
@@ -78,12 +74,29 @@ impl WindowsTray {
             return;
         }
 
+        // Build and set menu if provided
+        if let Some(ref items) = config.menu_items {
+            if let Some(hmenu) = crate::window::build_menu(items) {
+                let user_data = Box::new(crate::window::TrayUserData { hmenu: Some(hmenu) });
+                unsafe {
+                    windows::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(
+                        self.hwnd,
+                        windows::Win32::UI::WindowsAndMessaging::GWLP_USERDATA,
+                        Box::into_raw(user_data) as isize,
+                    );
+                }
+                log::info!("Menu attached to tray window");
+            }
+        }
+
         // Register the tray icon with tooltip
         self.add_tray_icon(config);
+        self.registered = true;
 
         log::info!("Windows tray created successfully");
     }
 
+    // TODO: Implement icon support
     fn add_tray_icon(&mut self, config: &WindowsTrayConfig) {
         let tooltip: Option<String> = config.tooltip.as_ref().map(|s| s.to_string());
 
@@ -194,10 +207,41 @@ impl WindowsTray {
                 log::info!("Hiding tray icon");
                 self.remove_tray_icon();
                 self.visible = false;
+                self.registered = false;
             }
         } else {
-            log::info!("Updating existing tray icon");
-            self.modify_tray_icon(config);
+            if !self.registered {
+                log::info!("Re-registering tray icon after hide");
+                self.add_tray_icon(config);
+                self.registered = true;
+            } else {
+                log::info!("Updating existing tray icon");
+                self.modify_tray_icon(config);
+            }
+
+            if let Some(ref items) = config.menu_items {
+                if let Some(hmenu) = crate::window::build_menu(items) {
+                    unsafe {
+                        let old_ptr = windows::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(
+                            self.hwnd,
+                            windows::Win32::UI::WindowsAndMessaging::GWLP_USERDATA,
+                        );
+                        if old_ptr != 0 {
+                            let _ = Box::from_raw(old_ptr as *mut crate::window::TrayUserData);
+                        }
+
+                        let user_data =
+                            Box::new(crate::window::TrayUserData { hmenu: Some(hmenu) });
+                        windows::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(
+                            self.hwnd,
+                            windows::Win32::UI::WindowsAndMessaging::GWLP_USERDATA,
+                            Box::into_raw(user_data) as isize,
+                        );
+                    }
+                    log::info!("Menu updated for tray window");
+                }
+            }
+
             self.visible = true;
         }
     }

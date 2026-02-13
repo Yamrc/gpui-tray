@@ -1,24 +1,13 @@
 //! Tray event types and input handling
 
+pub use gpui::Point;
+
 /// Mouse button types
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MouseButton {
     Left,
     Right,
     Middle,
-}
-
-/// Point for position data
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Point<T> {
-    pub x: T,
-    pub y: T,
-}
-
-impl<T> Point<T> {
-    pub fn new(x: T, y: T) -> Self {
-        Self { x, y }
-    }
 }
 
 /// Tray events emitted by user interaction
@@ -57,9 +46,31 @@ mod tests {
     }
 
     #[test]
-    fn test_point_new() {
-        let point = Point::new(10, 20);
-        assert_eq!(point.x, 10);
-        assert_eq!(point.y, 20);
+    fn test_tray_event_scroll() {
+        let event = TrayEvent::Scroll {
+            delta: Point::new(5, -3),
+        };
+
+        match event {
+            TrayEvent::Scroll { delta } => {
+                assert_eq!(delta.x, 5);
+                assert_eq!(delta.y, -3);
+            }
+            _ => panic!("Expected Scroll variant"),
+        }
+    }
+
+    #[test]
+    fn test_tray_event_menu_select() {
+        let event = TrayEvent::MenuSelect {
+            id: String::from("item-1"),
+        };
+
+        match event {
+            TrayEvent::MenuSelect { id } => {
+                assert_eq!(id, "item-1");
+            }
+            _ => panic!("Expected MenuSelect variant"),
+        }
     }
 }

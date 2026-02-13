@@ -16,10 +16,10 @@ impl WindowsTrayState {
 
     pub fn update_tray(&mut self, config: WindowsTrayConfig) {
         if let Some(ref mut tray) = self.tray {
-            log::info!("Updating existing tray");
+            log::debug!("Updating existing tray");
             tray.update(&config);
         } else {
-            log::info!("Creating new tray");
+            log::debug!("Creating new tray");
             let mut tray = WindowsTray::new();
             tray.create_internal(&config);
             self.tray = Some(tray);

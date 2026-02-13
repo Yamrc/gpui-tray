@@ -38,7 +38,7 @@ pub struct TrayIconData {
 pub struct Tray {
     /// Icon to display
     pub icon: Option<TrayIcon>,
-    /// Title text (displayed next to icon on macOS)
+    /// Title text (Only macOS, displayed next to icon)
     pub title: Option<SharedString>,
     /// Tooltip text
     pub tooltip: Option<SharedString>,
@@ -66,8 +66,8 @@ impl Tray {
         }
     }
 
-    /// Set the tray icon from GPUI Image
-    pub fn icon(mut self, icon: impl Into<gpui::Image>) -> Self {
+    /// TODO: Set the tray icon from GPUI Image
+    pub fn icon(mut self, _icon: impl Into<gpui::Image>) -> Self {
         // Store placeholder - actual rendering would happen in platform implementation
         self.icon = Some(TrayIcon::Image { data: Vec::new() });
         self

@@ -31,5 +31,5 @@ mod events;
 mod types;
 
 pub use app_ext::AppTrayExt;
-pub use events::{MouseButton, Point, TrayEvent};
+pub use events::{MouseButton, TrayEvent};
 pub use types::{Tray, TrayIcon, TrayIconData};
