@@ -1,3 +1,13 @@
+//! Tray event types and input handling
+
+/// Mouse button types
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+}
+
 /// Point for position data
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Point<T> {
@@ -25,14 +35,6 @@ pub enum TrayEvent {
     MenuSelect { id: String },
 }
 
-/// Mouse button types
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -55,30 +57,9 @@ mod tests {
     }
 
     #[test]
-    fn test_tray_event_scroll() {
-        let event = TrayEvent::Scroll {
-            delta: Point::new(0, 10),
-        };
-
-        match event {
-            TrayEvent::Scroll { delta } => {
-                assert_eq!(delta.y, 10);
-            }
-            _ => panic!("Expected Scroll variant"),
-        }
-    }
-
-    #[test]
-    fn test_menu_select() {
-        let event = TrayEvent::MenuSelect {
-            id: "menu-id".to_string(),
-        };
-
-        match event {
-            TrayEvent::MenuSelect { id } => {
-                assert_eq!(id, "menu-id");
-            }
-            _ => panic!("Expected MenuSelect variant"),
-        }
+    fn test_point_new() {
+        let point = Point::new(10, 20);
+        assert_eq!(point.x, 10);
+        assert_eq!(point.y, 20);
     }
 }

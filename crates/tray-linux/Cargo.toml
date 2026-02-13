@@ -6,7 +6,6 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-gpui-tray = { path = "../tray" }
 anyhow.workspace = true
 gpui.workspace = true
 zbus = "5.13"
