@@ -1,5 +1,7 @@
-use gpui::MenuItem as GpuiMenuItem;
+use gpui::{MenuItem as GpuiMenuItem, MouseButton};
 use log::{debug, error};
+use std::cell::Cell;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -14,6 +16,55 @@ pub const WM_USER_DESTROY_MENU: u32 = WM_USER + 2;
 const PLATFORM_TRAY_CLASS_NAME: PCWSTR = w!("GPUI::Tray");
 
 static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
+
+pub trait TrayEventDispatcher: Send + Sync + 'static {
+    fn dispatch_click(&self, button: MouseButton, position: gpui::Point<f32>);
+    fn dispatch_double_click(&self);
+    fn dispatch_menu_action(&self, action: Box<dyn gpui::Action>);
+}
+
+thread_local! {
+    static DISPATCHER: Cell<Option<&'static dyn TrayEventDispatcher>> = Cell::new(None);
+    static MENU_ACTIONS: Cell<Option<&'static HashMap<u32, Box<dyn gpui::Action>>>> = Cell::new(None);
+}
+
+pub fn set_dispatcher(dispatcher: Option<&'static dyn TrayEventDispatcher>) {
+    DISPATCHER.set(dispatcher);
+}
+
+pub fn set_menu_actions(actions: Option<&'static HashMap<u32, Box<dyn gpui::Action>>>) {
+    MENU_ACTIONS.set(actions);
+}
+
+fn dispatch_click(button: MouseButton, position: gpui::Point<f32>) {
+    DISPATCHER.with(|cell| {
+        if let Some(dispatcher) = cell.get() {
+            dispatcher.dispatch_click(button, position);
+        }
+    });
+}
+
+fn dispatch_double_click() {
+    DISPATCHER.with(|cell| {
+        if let Some(dispatcher) = cell.get() {
+            dispatcher.dispatch_double_click();
+        }
+    });
+}
+
+fn dispatch_menu_action(action_id: u32) {
+    MENU_ACTIONS.with(|cell| {
+        if let Some(actions) = cell.get() {
+            if let Some(action) = actions.get(&action_id) {
+                DISPATCHER.with(|dispatcher_cell| {
+                    if let Some(dispatcher) = dispatcher_cell.get() {
+                        dispatcher.dispatch_menu_action(action.boxed_clone());
+                    }
+                });
+            }
+        }
+    });
+}
 
 struct TrayUserData {
     hmenu: Option<HMENU>,
@@ -39,10 +90,6 @@ unsafe extern "system" fn tray_procedure(
         }
 
         let user_data = &mut *(user_data_ptr as *mut TrayUserData);
-
-        let mut pos = windows::Win32::Foundation::POINT { x: 0, y: 0 };
-        let _ = GetCursorPos(&mut pos);
-        let cursor_pos = (pos.x, pos.y);
 
         match msg {
             WM_DESTROY => {
@@ -78,15 +125,43 @@ unsafe extern "system" fn tray_procedure(
             }
             WM_USER_TRAYICON => {
                 let event = lparam.0 as u32;
+                let mut pos = POINT { x: 0, y: 0 };
+                let has_pos = GetCursorPos(&mut pos).is_ok();
+                let position = gpui::Point::new(pos.x as f32, pos.y as f32);
                 match event {
-                    WM_LBUTTONUP => {
-                        debug!("Received WM_LBUTTONUP with position: {:?}", cursor_pos);
+                    WM_LBUTTONDOWN => {
+                        debug!(
+                            "Received WM_LBUTTONDOWN with position: ({}, {})",
+                            pos.x, pos.y
+                        );
+                        if has_pos {
+                            dispatch_click(MouseButton::Left, position);
+                        }
+                    }
+                    WM_LBUTTONDBLCLK => {
+                        debug!(
+                            "Received WM_LBUTTONDBLCLK with position: ({}, {})",
+                            pos.x, pos.y
+                        );
+                        dispatch_double_click();
                     }
                     WM_MBUTTONUP => {
-                        debug!("Received WM_MBUTTONUP with position: {:?}", cursor_pos);
+                        debug!(
+                            "Received WM_MBUTTONUP with position: ({}, {})",
+                            pos.x, pos.y
+                        );
+                        if has_pos {
+                            dispatch_click(MouseButton::Middle, position);
+                        }
                     }
                     WM_RBUTTONUP => {
-                        debug!("Received WM_RBUTTONUP with position: {:?}", cursor_pos);
+                        debug!(
+                            "Received WM_RBUTTONUP with position: ({}, {})",
+                            pos.x, pos.y
+                        );
+                        if has_pos {
+                            dispatch_click(MouseButton::Right, position);
+                        }
                         if let Some(hmenu) = user_data.hmenu {
                             show_tray_menu(hwnd, hmenu);
                         }
@@ -98,6 +173,7 @@ unsafe extern "system" fn tray_procedure(
             WM_COMMAND => {
                 let command_id = wparam.0 as u32;
                 debug!("Received WM_COMMAND with ID: {}", command_id);
+                dispatch_menu_action(command_id);
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),
@@ -161,15 +237,23 @@ pub fn create_tray_window() -> Result<HWND, &'static str> {
     }
 }
 
-pub unsafe fn build_menu(items: &[GpuiMenuItem]) -> Option<HMENU> {
+pub unsafe fn build_menu(
+    items: &[GpuiMenuItem],
+) -> Option<(HMENU, Vec<(u32, Box<dyn gpui::Action>)>)> {
     unsafe {
         let hmenu = CreatePopupMenu().ok()?;
-        build_menu_items(hmenu, items, 0);
-        Some(hmenu)
+        let mut actions = Vec::new();
+        build_menu_items(hmenu, items, 0, &mut actions);
+        Some((hmenu, actions))
     }
 }
 
-unsafe fn build_menu_items(hmenu: HMENU, items: &[GpuiMenuItem], start_id: u32) -> u32 {
+unsafe fn build_menu_items(
+    hmenu: HMENU,
+    items: &[GpuiMenuItem],
+    start_id: u32,
+    actions: &mut Vec<(u32, Box<dyn gpui::Action>)>,
+) -> u32 {
     unsafe {
         let mut current_id = start_id;
 
@@ -178,7 +262,7 @@ unsafe fn build_menu_items(hmenu: HMENU, items: &[GpuiMenuItem], start_id: u32) 
                 GpuiMenuItem::Separator => {
                     let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
                 }
-                GpuiMenuItem::Action { name, .. } => {
+                GpuiMenuItem::Action { name, action, .. } => {
                     current_id += 1;
                     let wide_name = encode_wide(name.as_ref());
                     let result = AppendMenuW(
@@ -189,11 +273,14 @@ unsafe fn build_menu_items(hmenu: HMENU, items: &[GpuiMenuItem], start_id: u32) 
                     );
                     if result.is_err() {
                         error!("Failed to append menu item: {}", name);
+                    } else {
+                        actions.push((current_id, action.boxed_clone()));
                     }
                 }
                 GpuiMenuItem::Submenu(submenu) => {
                     if let Ok(submenu_handle) = CreatePopupMenu() {
-                        let next_id = build_menu_items(submenu_handle, &submenu.items, current_id);
+                        let next_id =
+                            build_menu_items(submenu_handle, &submenu.items, current_id, actions);
                         current_id = next_id;
 
                         let wide_name = encode_wide(submenu.name.as_ref());

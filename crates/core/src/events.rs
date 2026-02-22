@@ -7,26 +7,7 @@ pub struct ClickEvent {
     pub position: Point<f32>,
 }
 
+/// Left mouse button double-click event for tray icon.
 #[derive(Clone, PartialEq, Debug, Action)]
 #[action(namespace = gpui_tray, no_json)]
 pub struct DoubleClickEvent;
-
-#[derive(Clone, PartialEq, Debug, Action)]
-#[action(namespace = gpui_tray, no_json)]
-pub struct RightClickEvent {
-    pub position: Point<f32>,
-}
-
-#[derive(Clone, PartialEq, Debug, Action)]
-#[action(namespace = gpui_tray, no_json)]
-pub struct MouseEnterEvent;
-
-#[derive(Clone, PartialEq, Debug, Action)]
-#[action(namespace = gpui_tray, no_json)]
-pub struct MouseLeaveEvent;
-
-#[derive(Clone, PartialEq, Debug, Action)]
-#[action(namespace = gpui_tray, no_json)]
-pub struct ScrollEvent {
-    pub delta: Point<f32>,
-}

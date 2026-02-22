@@ -1,0 +1,12 @@
+[package]
+name = "gpui-tray-macos"
+version = "0.0.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui.workspace = true
+gpui-tray-core.workspace = true
+log.workspace = true
+objc2.workspace = true

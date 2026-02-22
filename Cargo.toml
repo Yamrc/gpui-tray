@@ -3,8 +3,8 @@ members = [
     "crates/core",
     "crates/gpui-tray",
     "crates/windows",
-    # "crates/macos",
-    # "crates/linux",
+    "crates/macos",
+    "crates/linux",
 ]
 resolver = "3"
 

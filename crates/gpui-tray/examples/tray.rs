@@ -3,6 +3,7 @@ use gpui::{
     div, prelude::*,
 };
 use gpui_tray::{Tray, TrayAppContext};
+use gpui_tray_core::{ClickEvent, DoubleClickEvent};
 use log::{debug, info};
 
 struct Example;
@@ -55,6 +56,8 @@ fn main() {
         cx.activate(true);
         cx.on_action(quit);
         cx.on_action(toggle_visible);
+        cx.on_action(on_tray_click);
+        cx.on_action(on_tray_double_click);
 
         debug!("Opening main window");
         cx.open_window(WindowOptions::default(), |_, cx| cx.new(|_| Example))
@@ -111,4 +114,15 @@ fn toggle_visible(_: &ToggleVisible, cx: &mut App) {
     let app_state = cx.global::<AppState>();
     cx.set_tray(app_state.tray.clone()).unwrap();
     cx.refresh_windows();
+}
+
+fn on_tray_click(event: &ClickEvent, _cx: &mut App) {
+    info!(
+        "Tray click event received: button={:?}, position={:?}",
+        event.button, event.position
+    );
+}
+
+fn on_tray_double_click(_event: &DoubleClickEvent, _cx: &mut App) {
+    info!("Tray double click event received");
 }

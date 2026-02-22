@@ -1,6 +1,7 @@
 use gpui::App;
 use gpui_tray_core::{Error, PlatformTray, Result, Tray};
 use log::{debug, error, info};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use windows::Win32::Foundation::{FALSE, HWND, TRUE};
 use windows::Win32::UI::Shell::*;
@@ -8,7 +9,7 @@ use windows::Win32::UI::Shell::*;
 use crate::util::encode_wide;
 use crate::window::{
     WM_USER_TRAYICON, build_menu, create_tray_window, destroy_window, destroy_window_menu,
-    set_window_menu,
+    set_menu_actions, set_window_menu,
 };
 
 static TRAY_COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -51,12 +52,18 @@ impl WindowsTray {
 
     fn build_menu_from_tray(&mut self, cx: &mut App, tray: &Tray) {
         destroy_window_menu(self.hwnd);
+        set_menu_actions(None);
 
         if let Some(builder) = &tray.menu_builder {
             let items = builder(cx);
             if !items.is_empty() {
                 unsafe {
-                    if let Some(hmenu) = build_menu(&items) {
+                    if let Some((hmenu, actions)) = build_menu(&items) {
+                        let boxed_actions: Box<HashMap<u32, Box<dyn gpui::Action>>> =
+                            Box::new(actions.into_iter().collect());
+                        let static_actions: &'static HashMap<u32, Box<dyn gpui::Action>> =
+                            Box::leak(boxed_actions);
+                        set_menu_actions(Some(static_actions));
                         set_window_menu(self.hwnd, Some(hmenu));
                     }
                 }
@@ -133,6 +140,7 @@ impl PlatformTray for WindowsTray {
         if !tray.visible {
             self.remove_tray_icon();
             destroy_window_menu(self.hwnd);
+            set_menu_actions(None);
             self.registered = false;
             self.visible = false;
             self.current_tray = None;
@@ -166,6 +174,7 @@ impl PlatformTray for WindowsTray {
 
         self.remove_tray_icon();
         destroy_window_menu(self.hwnd);
+        set_menu_actions(None);
 
         self.registered = false;
         self.visible = false;
@@ -181,6 +190,12 @@ impl Drop for WindowsTray {
         debug!("Dropping WindowsTray, cleaning up resources");
         self.remove_tray_icon();
         destroy_window_menu(self.hwnd);
+        set_menu_actions(None);
         destroy_window(self.hwnd);
     }
+}
+
+pub fn create() -> Result<Box<dyn PlatformTray>> {
+    debug!("Creating Windows tray implementation");
+    Ok(Box::new(WindowsTray::new()))
 }
