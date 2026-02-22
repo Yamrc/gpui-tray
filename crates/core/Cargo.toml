@@ -1,0 +1,11 @@
+[package]
+name = "gpui-tray-core"
+version = "0.0.0"
+edition.workspace = true
+authors.workspace = true
+description = "Core types for gpui-tray"
+license.workspace = true
+
+[dependencies]
+gpui.workspace = true
+thiserror.workspace = true

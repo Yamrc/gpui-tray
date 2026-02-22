@@ -1,6 +1,6 @@
 [package]
-name = "tray-windows"
-version.workspace = true
+name = "gpui-tray-windows"
+version = "0.0.0"
 edition.workspace = true
 authors.workspace = true
 description.workspace = true
@@ -9,7 +9,9 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 gpui.workspace = true
+gpui-tray-core = { path = "../core", version = "0.0.0" }
 log.workspace = true
+image = "0.25"
 
 [dependencies.windows]
 version = "0.62"
@@ -21,6 +23,3 @@ features = [
     "Win32_System_Threading",
     "Win32_System_LibraryLoader",
 ]
-
-[dev-dependencies]
-serial_test = "3.3"

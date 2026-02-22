@@ -1,0 +1,29 @@
+[package]
+name = "gpui-tray"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui.workspace = true
+gpui-tray-core = { path = "../core", version = "0.0.0" }
+log.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+gpui-tray-windows = { path = "../windows", version = "0.0.0" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+gpui-tray-macos = { path = "../macos", version = "0.0.0" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui-tray-linux = { path = "../linux", version = "0.0.0" }
+
+[[example]]
+name = "tray"
+path = "examples/tray.rs"
+
+# For example
+[dev-dependencies]
+env_logger = "0.11"
