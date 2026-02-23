@@ -2,6 +2,7 @@ use gpui::App;
 use gpui_tray_core::{Error, PlatformTray, Result, Tray};
 use log::{debug, error, info};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use windows::Win32::Foundation::{FALSE, HWND, TRUE};
 use windows::Win32::UI::Shell::*;
@@ -59,11 +60,9 @@ impl WindowsTray {
             if !items.is_empty() {
                 unsafe {
                     if let Some((hmenu, actions)) = build_menu(&items) {
-                        let boxed_actions: Box<HashMap<u32, Box<dyn gpui::Action>>> =
-                            Box::new(actions.into_iter().collect());
-                        let static_actions: &'static HashMap<u32, Box<dyn gpui::Action>> =
-                            Box::leak(boxed_actions);
-                        set_menu_actions(Some(static_actions));
+                        let actions_map: HashMap<u32, Box<dyn gpui::Action>> =
+                            actions.into_iter().collect();
+                        set_menu_actions(Some(Arc::new(actions_map)));
                         set_window_menu(self.hwnd, Some(hmenu));
                     }
                 }
@@ -188,10 +187,13 @@ impl PlatformTray for WindowsTray {
 impl Drop for WindowsTray {
     fn drop(&mut self) {
         debug!("Dropping WindowsTray, cleaning up resources");
-        self.remove_tray_icon();
-        destroy_window_menu(self.hwnd);
-        set_menu_actions(None);
-        destroy_window(self.hwnd);
+        if !self.hwnd.is_invalid() {
+            self.remove_tray_icon();
+            destroy_window_menu(self.hwnd);
+            set_menu_actions(None);
+            destroy_window(self.hwnd);
+            self.hwnd = HWND(std::ptr::null_mut());
+        }
     }
 }
 

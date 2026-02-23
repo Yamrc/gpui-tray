@@ -1,7 +1,8 @@
 use gpui::{MenuItem as GpuiMenuItem, MouseButton};
 use log::{debug, error};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -16,6 +17,7 @@ pub const WM_USER_DESTROY_MENU: u32 = WM_USER + 2;
 const PLATFORM_TRAY_CLASS_NAME: PCWSTR = w!("GPUI::Tray");
 
 static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
+static mut CLASS_ATOM: u16 = 0;
 
 pub trait TrayEventDispatcher: Send + Sync + 'static {
     fn dispatch_click(&self, button: MouseButton, position: gpui::Point<f32>);
@@ -25,15 +27,21 @@ pub trait TrayEventDispatcher: Send + Sync + 'static {
 
 thread_local! {
     static DISPATCHER: Cell<Option<&'static dyn TrayEventDispatcher>> = Cell::new(None);
-    static MENU_ACTIONS: Cell<Option<&'static HashMap<u32, Box<dyn gpui::Action>>>> = Cell::new(None);
+    static MENU_ACTIONS: RefCell<Option<Arc<HashMap<u32, Box<dyn gpui::Action>>>>> = RefCell::new(None);
 }
 
 pub fn set_dispatcher(dispatcher: Option<&'static dyn TrayEventDispatcher>) {
     DISPATCHER.set(dispatcher);
 }
 
-pub fn set_menu_actions(actions: Option<&'static HashMap<u32, Box<dyn gpui::Action>>>) {
-    MENU_ACTIONS.set(actions);
+pub fn set_menu_actions(actions: Option<Arc<HashMap<u32, Box<dyn gpui::Action>>>>) {
+    MENU_ACTIONS.with(|cell| {
+        *cell.borrow_mut() = actions;
+    });
+}
+
+pub fn get_menu_action(id: u32) -> Option<Box<dyn gpui::Action>> {
+    MENU_ACTIONS.with(|cell| cell.borrow().as_ref()?.get(&id).map(|a| a.boxed_clone()))
 }
 
 fn dispatch_click(button: MouseButton, position: gpui::Point<f32>) {
@@ -53,17 +61,13 @@ fn dispatch_double_click() {
 }
 
 fn dispatch_menu_action(action_id: u32) {
-    MENU_ACTIONS.with(|cell| {
-        if let Some(actions) = cell.get() {
-            if let Some(action) = actions.get(&action_id) {
-                DISPATCHER.with(|dispatcher_cell| {
-                    if let Some(dispatcher) = dispatcher_cell.get() {
-                        dispatcher.dispatch_menu_action(action.boxed_clone());
-                    }
-                });
+    if let Some(action) = get_menu_action(action_id) {
+        DISPATCHER.with(|dispatcher_cell| {
+            if let Some(dispatcher) = dispatcher_cell.get() {
+                dispatcher.dispatch_menu_action(action);
             }
-        }
-    });
+        });
+    }
 }
 
 struct TrayUserData {
@@ -199,10 +203,26 @@ fn register_platform_tray_class() -> Result<(), &'static str> {
                 CLASS_REGISTERED.store(false, Ordering::SeqCst);
                 return Err("Failed to register window class");
             }
+            CLASS_ATOM = result;
             debug!("Window class registered successfully, atom: {}", result);
         }
     }
     Ok(())
+}
+
+pub fn unregister_tray_class() {
+    unsafe {
+        if CLASS_ATOM != 0 {
+            let result = UnregisterClassW(PCWSTR(CLASS_ATOM as usize as *const u16), None);
+            if result.is_ok() {
+                debug!("Window class unregistered successfully");
+                CLASS_ATOM = 0;
+                CLASS_REGISTERED.store(false, Ordering::SeqCst);
+            } else {
+                error!("Failed to unregister window class");
+            }
+        }
+    }
 }
 
 pub fn create_tray_window() -> Result<HWND, &'static str> {
@@ -237,13 +257,25 @@ pub fn create_tray_window() -> Result<HWND, &'static str> {
     }
 }
 
+struct MenuHandle(HMENU);
+
+impl Drop for MenuHandle {
+    fn drop(&mut self) {
+        if !self.0.is_invalid() {
+            unsafe {
+                let _ = DestroyMenu(self.0);
+            }
+        }
+    }
+}
+
 pub unsafe fn build_menu(
     items: &[GpuiMenuItem],
 ) -> Option<(HMENU, Vec<(u32, Box<dyn gpui::Action>)>)> {
     unsafe {
         let hmenu = CreatePopupMenu().ok()?;
         let mut actions = Vec::new();
-        build_menu_items(hmenu, items, 0, &mut actions);
+        build_menu_items(hmenu, items, 0, &mut actions).ok()?;
         Some((hmenu, actions))
     }
 }
@@ -253,7 +285,7 @@ unsafe fn build_menu_items(
     items: &[GpuiMenuItem],
     start_id: u32,
     actions: &mut Vec<(u32, Box<dyn gpui::Action>)>,
-) -> u32 {
+) -> Result<u32, ()> {
     unsafe {
         let mut current_id = start_id;
 
@@ -263,7 +295,7 @@ unsafe fn build_menu_items(
                     let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
                 }
                 GpuiMenuItem::Action { name, action, .. } => {
-                    current_id += 1;
+                    current_id = current_id.checked_add(1).ok_or(())?;
                     let wide_name = encode_wide(name.as_ref());
                     let result = AppendMenuW(
                         hmenu,
@@ -278,30 +310,33 @@ unsafe fn build_menu_items(
                     }
                 }
                 GpuiMenuItem::Submenu(submenu) => {
-                    if let Ok(submenu_handle) = CreatePopupMenu() {
-                        let next_id =
-                            build_menu_items(submenu_handle, &submenu.items, current_id, actions);
-                        current_id = next_id;
+                    let submenu_handle = CreatePopupMenu().map_err(|_| ())?;
+                    let _guard = MenuHandle(submenu_handle);
 
-                        let wide_name = encode_wide(submenu.name.as_ref());
-                        let result = AppendMenuW(
-                            hmenu,
-                            MF_POPUP,
-                            submenu_handle.0 as usize,
-                            PCWSTR(wide_name.as_ptr()),
-                        );
+                    let next_id =
+                        build_menu_items(submenu_handle, &submenu.items, current_id, actions)?;
+                    current_id = next_id;
 
-                        if result.is_err() {
-                            error!("Failed to append submenu: {}", submenu.name);
-                            let _ = DestroyMenu(submenu_handle);
-                        }
+                    let wide_name = encode_wide(submenu.name.as_ref());
+                    let result = AppendMenuW(
+                        hmenu,
+                        MF_POPUP,
+                        submenu_handle.0 as usize,
+                        PCWSTR(wide_name.as_ptr()),
+                    );
+
+                    if result.is_err() {
+                        error!("Failed to append submenu: {}", submenu.name);
+                        return Err(());
                     }
+
+                    std::mem::forget(_guard);
                 }
                 _ => {}
             }
         }
 
-        current_id
+        Ok(current_id)
     }
 }
 

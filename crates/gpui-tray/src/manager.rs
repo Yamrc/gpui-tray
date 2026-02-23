@@ -1,4 +1,4 @@
-use gpui::*;
+use gpui::{Action, App, Global, MouseButton, Point};
 use gpui_tray_core::Result;
 use gpui_tray_core::{self as core, *};
 use log::debug;
