@@ -1,7 +1,7 @@
 use gpui::App;
 use gpui_tray_core::platform_trait::PlatformTray;
 use gpui_tray_core::{Error, Result, Tray};
-use log::{debug, error, info};
+use log::{debug, error};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -24,7 +24,7 @@ static WM_TASKBAR_RESTART: AtomicU32 = AtomicU32::new(0);
 /// This message is broadcast by Windows when the taskbar is recreated
 /// (e.g., after explorer.exe restart). Applications should re-register
 /// their tray icons when receiving this message.
-pub fn taskbar_restart_message() -> u32 {
+pub(crate) fn taskbar_restart_message() -> u32 {
     let msg = WM_TASKBAR_RESTART.load(Ordering::Relaxed);
     if msg == 0 {
         let new_msg = unsafe { RegisterWindowMessageW(windows::core::w!("TaskbarCreated")) };
@@ -52,7 +52,7 @@ pub fn taskbar_restart_message() -> u32 {
 ///     .icon(image)
 ///     .menu(|cx| vec![MenuItem::action("Quit", Quit)]))?;
 /// ```
-pub struct WindowsTray {
+pub(crate) struct WindowsTray {
     hwnd: HWND,
     tray_id: u32,
     registered: bool,
@@ -64,7 +64,6 @@ pub struct WindowsTray {
 impl WindowsTray {
     pub(crate) fn new() -> Self {
         let tray_id = TRAY_COUNTER.fetch_add(1, Ordering::Relaxed);
-        debug!("Creating WindowsTray with ID: {}", tray_id);
 
         taskbar_restart_message();
 
@@ -87,7 +86,6 @@ impl WindowsTray {
                     return Err(Error::Platform(e.to_string()));
                 }
             };
-            debug!("Tray window created: {:?}", self.hwnd);
         }
         Ok(())
     }
@@ -181,10 +179,6 @@ impl WindowsTray {
 
 impl PlatformTray for WindowsTray {
     fn set_tray(&mut self, cx: &mut App, tray: &Tray) -> Result<()> {
-        debug!(
-            "set_tray called: visible={}, tooltip={:?}",
-            tray.visible, tray.tooltip
-        );
 
         self.ensure_window()?;
 
@@ -195,7 +189,6 @@ impl PlatformTray for WindowsTray {
             self.registered = false;
             self.visible = false;
             self.current_tray = None;
-            info!("Tray hidden successfully");
             return Ok(());
         }
 
@@ -205,10 +198,8 @@ impl PlatformTray for WindowsTray {
             self.add_or_update_tray_icon(tray, false)?;
             self.registered = true;
             self.visible = true;
-            info!("Tray icon created successfully");
         } else {
             self.add_or_update_tray_icon(tray, true)?;
-            info!("Tray icon updated successfully");
         }
 
         self.current_tray = Some(tray.clone());
@@ -216,13 +207,10 @@ impl PlatformTray for WindowsTray {
     }
 
     fn update_tray(&mut self, cx: &mut App, tray: &Tray) -> Result<()> {
-        debug!("update_tray called");
         self.set_tray(cx, tray)
     }
 
     fn remove_tray(&mut self, _cx: &mut App) -> Result<()> {
-        debug!("remove_tray called");
-
         self.remove_tray_icon();
         destroy_window_menu(self.hwnd);
         set_menu_actions(None);
@@ -231,14 +219,12 @@ impl PlatformTray for WindowsTray {
         self.visible = false;
         self.current_tray = None;
 
-        info!("Tray removed successfully");
         Ok(())
     }
 }
 
 impl Drop for WindowsTray {
     fn drop(&mut self) {
-        debug!("Dropping WindowsTray, cleaning up resources");
         if !self.hwnd.is_invalid() {
             self.remove_tray_icon();
             destroy_window_menu(self.hwnd);

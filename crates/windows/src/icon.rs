@@ -5,30 +5,11 @@ use windows::Win32::Foundation::TRUE;
 use windows::Win32::Graphics::Gdi::DeleteObject;
 use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, HICON};
 
-/// A Windows icon handle wrapper with automatic cleanup.
-///
-/// Uses reference counting to share the underlying HICON and destroys
-/// it when the last reference is dropped.
-pub struct Icon {
+pub(crate) struct Icon {
     hicon: Rc<HICON>,
 }
 
 impl Icon {
-    /// Creates an icon from a GPUI Image.
-    ///
-    /// # Arguments
-    ///
-    /// * `image` - The GPUI image to convert
-    ///
-    /// # Errors
-    ///
-    /// Returns `Error::InvalidIcon` if the image cannot be decoded.
-    /// Returns `Error::Platform` if the icon creation fails.
-    ///
-    /// # Implementation Details
-    ///
-    /// The image is automatically resized to 32x32 pixels using Lanczos3
-    /// resampling for optimal tray display quality.
     pub fn from_image(image: &gpui::Image) -> Result<Self, Error> {
         debug!("Creating icon from image, format: {:?}", image.format);
 

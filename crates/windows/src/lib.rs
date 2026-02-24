@@ -12,16 +12,12 @@ mod window;
 
 use gpui_tray_core::Result;
 use gpui_tray_core::platform_trait::PlatformTray;
-use log::debug;
 
-#[doc(hidden)]
+// Re-export for internal use by gpui-tray manager
 pub use window::TrayEventDispatcher;
-
-#[doc(hidden)]
 pub use window::set_dispatcher;
 
 /// Creates a new Windows platform tray implementation.
 pub fn create() -> Result<Box<dyn PlatformTray>> {
-    debug!("Creating Windows tray implementation");
     tray::create()
 }

@@ -47,10 +47,7 @@ impl Render for Example {
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
-    info!("Starting gpui-tray example application");
-
     Application::new().run(|cx: &mut App| {
-        debug!("Setting up global application state");
         cx.set_global(AppState::new());
 
         cx.activate(true);
@@ -59,14 +56,11 @@ fn main() {
         cx.on_action(on_tray_click);
         cx.on_action(on_tray_double_click);
 
-        debug!("Opening main window");
         cx.open_window(WindowOptions::default(), |_, cx| cx.new(|_| Example))
             .unwrap();
 
-        debug!("Setting initial tray state");
         let app_state = cx.global::<AppState>();
         cx.set_tray(app_state.tray.clone()).unwrap();
-        info!("Application ready!");
     });
 }
 
@@ -76,8 +70,6 @@ struct AppState {
 
 impl AppState {
     fn new() -> Self {
-        debug!("Creating AppState with default tray configuration");
-
         let icon_bytes = include_bytes!("image/app-icon.png");
         let icon = Image::from_bytes(ImageFormat::Png, icon_bytes.to_vec());
 
@@ -91,7 +83,6 @@ impl AppState {
     }
 
     fn build_menus(_cx: &mut App) -> Vec<MenuItem> {
-        debug!("Building tray menu items");
         vec![
             MenuItem::action("Hide Tray Icon", ToggleVisible),
             MenuItem::separator(),
@@ -113,8 +104,6 @@ fn toggle_visible(_: &ToggleVisible, cx: &mut App) {
     let app_state = cx.global_mut::<AppState>();
     let new_visible = !app_state.tray.visible;
     app_state.tray.visible = new_visible;
-
-    debug!("Tray visibility toggled: visible={}", new_visible);
 
     let app_state = cx.global::<AppState>();
     cx.set_tray(app_state.tray.clone()).unwrap();

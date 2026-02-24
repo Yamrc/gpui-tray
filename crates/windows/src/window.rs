@@ -112,7 +112,7 @@ unsafe extern "system" fn tray_procedure(
         }
         WM_USER_SET_MENU => {
             let menu_ptr = lparam.0;
-            debug!("Received WM_USER_SET_MENU, menu_ptr: {:?}", menu_ptr);
+            debug!("Received WM_USER_SET_MENU with menu_ptr={:?}", menu_ptr);
             user_data.hmenu = if menu_ptr == 0 {
                 None
             } else {
@@ -139,7 +139,7 @@ unsafe extern "system" fn tray_procedure(
             match event {
                 WM_LBUTTONDOWN => {
                     debug!(
-                        "Received WM_LBUTTONDOWN with position: ({}, {})",
+                        "Received WM_LBUTTONDOWN with position=({}, {})",
                         pos.x, pos.y
                     );
                     if has_pos {
@@ -148,14 +148,14 @@ unsafe extern "system" fn tray_procedure(
                 }
                 WM_LBUTTONDBLCLK => {
                     debug!(
-                        "Received WM_LBUTTONDBLCLK with position: ({}, {})",
+                        "Received WM_LBUTTONDBLCLK with position=({}, {})",
                         pos.x, pos.y
                     );
                     dispatch_double_click();
                 }
                 WM_MBUTTONUP => {
                     debug!(
-                        "Received WM_MBUTTONUP with position: ({}, {})",
+                        "Received WM_MBUTTONUP with position=({}, {})",
                         pos.x, pos.y
                     );
                     if has_pos {
@@ -164,7 +164,7 @@ unsafe extern "system" fn tray_procedure(
                 }
                 WM_RBUTTONUP => {
                     debug!(
-                        "Received WM_RBUTTONUP with position: ({}, {})",
+                        "Received WM_RBUTTONUP with position=({}, {})",
                         pos.x, pos.y
                     );
                     if has_pos {
@@ -180,7 +180,7 @@ unsafe extern "system" fn tray_procedure(
         }
         WM_COMMAND => {
             let command_id = wparam.0 as u32;
-            debug!("Received WM_COMMAND with ID: {}", command_id);
+            debug!("Received WM_COMMAND with id={}", command_id);
             dispatch_menu_action(command_id);
             LRESULT(0)
         }

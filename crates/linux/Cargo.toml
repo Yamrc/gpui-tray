@@ -13,3 +13,4 @@ log.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
+serde.workspace = true

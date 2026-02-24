@@ -1,8 +1,13 @@
-use gpui::{Action, App, Global, MouseButton, Point};
+use gpui::{App, Global};
 use gpui_tray_core::Result;
 use gpui_tray_core::platform_trait::PlatformTray;
-use gpui_tray_core::{self as core, *};
+use gpui_tray_core::*;
 use log::debug;
+
+#[cfg(target_os = "windows")]
+use gpui::{Action, MouseButton, Point};
+
+#[cfg(target_os = "windows")]
 use std::cell::Cell;
 
 #[cfg(target_os = "windows")]
@@ -32,7 +37,7 @@ impl platform_impl::TrayEventDispatcher for GlobalDispatcher {
             "Dispatching click event: button={:?}, position={:?}",
             button, position
         );
-        let event = core::ClickEvent { button, position };
+        let event = ClickEvent { button, position };
         DISPATCHER_APP.with(|cell| {
             if let Some(app_ptr) = cell.get() {
                 unsafe {
@@ -45,7 +50,7 @@ impl platform_impl::TrayEventDispatcher for GlobalDispatcher {
 
     fn dispatch_double_click(&self) {
         debug!("Dispatching double click event");
-        let event = core::DoubleClickEvent;
+        let event = DoubleClickEvent;
         DISPATCHER_APP.with(|cell| {
             if let Some(app_ptr) = cell.get() {
                 unsafe {
@@ -167,7 +172,8 @@ pub trait TrayAppContext {
 
 impl TrayAppContext for App {
     fn set_tray(&mut self, tray: Tray) -> Result<()> {
-        #[cfg(target_os = "windows")]
+        log::debug!("TrayAppContext::set_tray called, visible={}", tray.visible);
+        #[cfg(not(target_os = "macos"))]
         set_dispatcher_app(self);
 
         let mut manager = if self.has_global::<TrayManager>() {
@@ -188,6 +194,7 @@ impl TrayAppContext for App {
     }
 
     fn update_tray(&mut self, f: impl FnOnce(&mut Tray)) -> Result<Tray> {
+        log::debug!("TrayAppContext::update_tray called");
         if !self.has_global::<TrayManager>() {
             return Err(Error::NotFound);
         }
@@ -207,7 +214,7 @@ impl TrayAppContext for App {
         let mut manager = self.remove_global::<TrayManager>();
         manager.remove_tray(self)?;
 
-        #[cfg(target_os = "windows")]
+        #[cfg(not(target_os = "macos"))]
         clear_dispatcher_app();
 
         self.set_global(manager);
@@ -228,4 +235,16 @@ fn set_dispatcher_app(app: &mut App) {
 fn clear_dispatcher_app() {
     DISPATCHER_APP.set(None);
     platform_impl::set_dispatcher(None);
+}
+
+/// Sets up the event dispatcher for Linux platform.
+#[cfg(target_os = "linux")]
+fn set_dispatcher_app(app: &mut App) {
+    platform_impl::set_dispatcher_app(app);
+}
+
+/// Clears the event dispatcher for Linux platform.
+#[cfg(target_os = "linux")]
+fn clear_dispatcher_app() {
+    platform_impl::clear_dispatcher_app();
 }

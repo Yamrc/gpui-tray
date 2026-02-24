@@ -20,6 +20,7 @@ gpui = "0.2.2"
 thiserror = "1.0"
 image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "ico"]}
 log = "0.4.29"
+serde = "1.0.228"
 
 gpui-tray-core = { path = "crates/core" }
 

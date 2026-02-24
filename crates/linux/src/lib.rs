@@ -2,16 +2,15 @@
 
 mod dbus;
 mod icon;
-mod menu;
-mod sni;
 mod tray;
 
 use gpui_tray_core::platform_trait::PlatformTray;
 use gpui_tray_core::Result;
 
-pub use dbus::{TrayEventDispatcher, set_dispatcher};
-pub use tray::LinuxTray;
+// Re-export for internal use by gpui-tray manager
+pub use tray::{set_dispatcher_app, clear_dispatcher_app};
 
 pub fn create() -> Result<Box<dyn PlatformTray>> {
     tray::create()
 }
+
