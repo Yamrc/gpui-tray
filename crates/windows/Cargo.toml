@@ -1,14 +1,16 @@
 [package]
 name = "gpui-tray-windows"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 description.workspace = true
 license.workspace = true
 
-[target.'cfg(target_os = "windows")'.dependencies]
+[dependencies]
 gpui.workspace = true
 gpui-tray-core.workspace = true
 image.workspace = true
 log.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
 windows.workspace = true
