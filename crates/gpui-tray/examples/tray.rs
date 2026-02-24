@@ -1,5 +1,6 @@
 use gpui::{
-    App, Application, Context, Div, Global, Image, ImageFormat, MenuItem, Stateful, Window, WindowOptions, actions, div, prelude::*
+    App, Application, Context, Div, Global, Image, ImageFormat, MenuItem, Stateful, Window,
+    WindowOptions, actions, div, prelude::*,
 };
 use gpui_tray::{Tray, TrayAppContext};
 use gpui_tray_core::{ClickEvent, DoubleClickEvent};

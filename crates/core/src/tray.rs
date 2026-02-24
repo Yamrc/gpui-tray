@@ -2,12 +2,15 @@ use gpui::*;
 use std::fmt;
 use std::sync::Arc;
 
+/// Type alias for menu builder function.
+pub type MenuBuilder = Arc<dyn Fn(&mut App) -> Vec<MenuItem> + Send + Sync>;
+
 pub struct Tray {
     pub tooltip: Option<SharedString>,
     pub title: Option<SharedString>,
     pub icon: Option<Image>,
     pub visible: bool,
-    pub menu_builder: Option<Arc<dyn Fn(&mut App) -> Vec<MenuItem> + Send + Sync>>,
+    pub menu_builder: Option<MenuBuilder>,
 }
 
 impl Tray {

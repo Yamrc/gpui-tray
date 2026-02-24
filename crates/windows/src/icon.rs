@@ -1,13 +1,13 @@
 use gpui_tray_core::Error;
 use log::debug;
-use std::sync::Arc;
+use std::rc::Rc;
 use windows::Win32::Foundation::TRUE;
 use windows::Win32::Graphics::Gdi::DeleteObject;
 use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, HICON};
 
 /// A Windows icon handle wrapper that ensures proper cleanup.
 pub struct Icon {
-    hicon: Arc<HICON>,
+    hicon: Rc<HICON>,
 }
 
 impl Icon {
@@ -18,8 +18,7 @@ impl Icon {
     pub fn from_image(image: &gpui::Image) -> Result<Self, Error> {
         debug!("Creating icon from image, format: {:?}", image.format);
 
-        let img = image::load_from_memory(&image.bytes)
-            .map_err(|_| Error::InvalidIcon)?;
+        let img = image::load_from_memory(&image.bytes).map_err(|_| Error::InvalidIcon)?;
 
         let resized = img.resize_to_fill(32, 32, image::imageops::FilterType::Lanczos3);
         let rgba = resized.to_rgba8();
@@ -27,7 +26,7 @@ impl Icon {
         let hicon = create_hicon(&rgba, 32, 32)?;
 
         Ok(Self {
-            hicon: Arc::new(hicon),
+            hicon: Rc::new(hicon),
         })
     }
 
@@ -39,7 +38,7 @@ impl Icon {
 
 impl Drop for Icon {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.hicon) == 1 {
+        if Rc::strong_count(&self.hicon) == 1 {
             debug!("Destroying icon");
             unsafe {
                 let _ = DestroyIcon(*self.hicon);
@@ -100,13 +99,13 @@ fn create_hicon(rgba: &[u8], width: u32, height: u32) -> Result<HICON, Error> {
 
         let _ = ReleaseDC(None, hdc);
 
-        let mut and_mask = vec![0xFFu8; ((width + 7) / 8 * height) as usize];
+        let mut and_mask = vec![0xFFu8; (width.div_ceil(8) * height) as usize];
         for (i, chunk) in rgba.chunks(4).enumerate() {
             let alpha = chunk[3];
             if alpha < 128 {
                 let x = (i % width as usize) as u32;
                 let y = (i / width as usize) as u32;
-                let byte_index = (y * ((width + 7) / 8) + (x / 8)) as usize;
+                let byte_index = (y * width.div_ceil(8) + (x / 8)) as usize;
                 let bit_index = x % 8;
                 and_mask[byte_index] &= !(1 << (7 - bit_index));
             }

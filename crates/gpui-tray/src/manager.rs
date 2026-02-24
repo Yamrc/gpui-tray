@@ -69,7 +69,7 @@ impl platform_impl::TrayEventDispatcher for GlobalDispatcher {
 
 #[cfg(target_os = "windows")]
 thread_local! {
-    static DISPATCHER_APP: Cell<Option<*mut App>> = Cell::new(None);
+    static DISPATCHER_APP: Cell<Option<*mut App>> = const { Cell::new(None) };
 }
 
 #[cfg(target_os = "windows")]

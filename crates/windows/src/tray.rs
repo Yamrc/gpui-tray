@@ -2,7 +2,7 @@ use gpui::App;
 use gpui_tray_core::{Error, PlatformTray, Result, Tray};
 use log::{debug, error, info};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use windows::Win32::Foundation::{FALSE, HWND, TRUE};
 use windows::Win32::UI::Shell::*;
@@ -76,15 +76,13 @@ impl WindowsTray {
 
         if let Some(builder) = &tray.menu_builder {
             let items = builder(cx);
-            if !items.is_empty() {
-                unsafe {
-                    if let Some((hmenu, actions)) = build_menu(&items) {
-                        let actions_map: HashMap<u32, Box<dyn gpui::Action>> =
-                            actions.into_iter().collect();
-                        set_menu_actions(Some(Arc::new(actions_map)));
-                        set_window_menu(self.hwnd, Some(hmenu));
-                    }
-                }
+            if !items.is_empty()
+                && let Some((hmenu, actions)) = unsafe { build_menu(&items) }
+            {
+                let actions_map: HashMap<u32, Box<dyn gpui::Action>> =
+                    actions.into_iter().collect();
+                set_menu_actions(Some(Rc::new(actions_map)));
+                set_window_menu(self.hwnd, Some(hmenu));
             }
         }
     }
@@ -116,26 +114,24 @@ impl WindowsTray {
             }
         }
 
-        unsafe {
-            let mut nid = NOTIFYICONDATAW {
-                cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-                uFlags: flags,
-                hWnd: self.hwnd,
-                uID: self.tray_id,
-                uCallbackMessage: WM_USER_TRAYICON,
-                hIcon: hicon,
-                szTip: sz_tip,
-                ..std::mem::zeroed()
-            };
+        let nid = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            uFlags: flags,
+            hWnd: self.hwnd,
+            uID: self.tray_id,
+            uCallbackMessage: WM_USER_TRAYICON,
+            hIcon: hicon,
+            szTip: sz_tip,
+            ..unsafe { std::mem::zeroed() }
+        };
 
-            let action = if is_update { NIM_MODIFY } else { NIM_ADD };
-            let result = Shell_NotifyIconW(action, &mut nid);
+        let action = if is_update { NIM_MODIFY } else { NIM_ADD };
+        let result = unsafe { Shell_NotifyIconW(action, &nid) };
 
-            if result != TRUE {
-                let err_msg = format!("Shell_NotifyIconW failed for action {:?}", action);
-                error!("{}", err_msg);
-                return Err(Error::Platform(err_msg));
-            }
+        if result != TRUE {
+            let err_msg = format!("Shell_NotifyIconW failed for action {:?}", action);
+            error!("{}", err_msg);
+            return Err(Error::Platform(err_msg));
         }
 
         Ok(())
@@ -143,20 +139,18 @@ impl WindowsTray {
 
     fn remove_tray_icon(&mut self) {
         if !self.hwnd.is_invalid() && self.registered {
-            unsafe {
-                let mut nid = NOTIFYICONDATAW {
-                    cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-                    uFlags: NIF_MESSAGE,
-                    hWnd: self.hwnd,
-                    uID: self.tray_id,
-                    ..std::mem::zeroed()
-                };
+            let nid = NOTIFYICONDATAW {
+                cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+                uFlags: NIF_MESSAGE,
+                hWnd: self.hwnd,
+                uID: self.tray_id,
+                ..unsafe { std::mem::zeroed() }
+            };
 
-                if Shell_NotifyIconW(NIM_DELETE, &mut nid) == FALSE {
-                    error!("Failed to remove tray icon");
-                } else {
-                    debug!("Tray icon removed successfully");
-                }
+            if unsafe { Shell_NotifyIconW(NIM_DELETE, &nid) } == FALSE {
+                error!("Failed to remove tray icon");
+            } else {
+                debug!("Tray icon removed successfully");
             }
         }
         self.icon = None;
