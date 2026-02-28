@@ -78,6 +78,8 @@ cx.update_tray(|tray| {
 cx.remove_tray()?;
 ```
 
+More [examples](../crates/gpui-tray/examples/)
+
 ## Contributing
 
 I'm not a professional developer, so there's probably a lot of stuff I didn't think through properly. If you see something that could be done better, feel free to open an issue or PR!
