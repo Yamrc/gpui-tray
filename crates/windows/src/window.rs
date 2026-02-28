@@ -1,5 +1,5 @@
 use gpui::{MenuItem as GpuiMenuItem, MouseButton};
-use log::{debug, error};
+use log::{debug, error, warn};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -13,8 +13,10 @@ use crate::util::encode_wide;
 pub(crate) const WM_USER_TRAYICON: u32 = 6002;
 pub(crate) const WM_USER_SET_MENU: u32 = WM_USER + 1;
 pub(crate) const WM_USER_DESTROY_MENU: u32 = WM_USER + 2;
+pub(crate) const WM_USER_REREGISTER: u32 = WM_USER + 3;
 
 const PLATFORM_TRAY_CLASS_NAME: PCWSTR = w!("GPUI::Tray");
+const MAX_MENU_ITEMS: u16 = 65535;
 
 static CLASS_REGISTERED: AtomicBool = AtomicBool::new(false);
 static mut CLASS_ATOM: u16 = 0;
@@ -27,7 +29,7 @@ pub trait TrayEventDispatcher: Send + Sync + 'static {
 }
 
 /// Type alias for menu actions map.
-pub(crate) type MenuActionsMap = Rc<HashMap<u32, Box<dyn gpui::Action>>>;
+pub(crate) type MenuActionsMap = Rc<HashMap<u16, Box<dyn gpui::Action>>>;
 
 thread_local! {
     static DISPATCHER: Cell<Option<&'static dyn TrayEventDispatcher>> = Cell::new(None);
@@ -43,7 +45,7 @@ pub(crate) fn set_menu_actions(actions: Option<MenuActionsMap>) {
     MENU_ACTIONS.with(|cell| *cell.borrow_mut() = actions);
 }
 
-fn get_menu_action(id: u32) -> Option<Box<dyn gpui::Action>> {
+fn get_menu_action(id: u16) -> Option<Box<dyn gpui::Action>> {
     MENU_ACTIONS.with(|cell| cell.borrow().as_ref()?.get(&id).map(|a| a.boxed_clone()))
 }
 
@@ -63,7 +65,7 @@ fn dispatch_double_click() {
     });
 }
 
-fn dispatch_menu_action(action_id: u32) {
+fn dispatch_menu_action(action_id: u16) {
     if let Some(action) = get_menu_action(action_id) {
         DISPATCHER.with(|dispatcher_cell| {
             if let Some(dispatcher) = dispatcher_cell.get() {
@@ -173,16 +175,22 @@ unsafe extern "system" fn tray_procedure(
             LRESULT(0)
         }
         WM_COMMAND => {
-            let command_id = wparam.0 as u32;
+            let command_id = wparam.0 as u16;
             debug!("Received WM_COMMAND with id={}", command_id);
             dispatch_menu_action(command_id);
+            LRESULT(0)
+        }
+        WM_USER_REREGISTER => {
+            debug!("Received WM_USER_REREGISTER, forwarding to tray");
+            crate::tray::reregister_tray_icon(hwnd);
             LRESULT(0)
         }
         _ => {
             let taskbar_restart = crate::tray::taskbar_restart_message();
             if msg == taskbar_restart {
-                debug!("Received TaskbarCreated message, re-registering tray icon");
-                unsafe { SendMessageW(hwnd, WM_USER_TRAYICON, Some(WPARAM(0)), Some(LPARAM(0))) };
+                debug!("Received TaskbarCreated message, posting reregister");
+                let _ =
+                    unsafe { PostMessageW(Some(hwnd), WM_USER_REREGISTER, WPARAM(0), LPARAM(0)) };
                 return LRESULT(0);
             }
             unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
@@ -271,7 +279,7 @@ impl Drop for MenuHandle {
 }
 
 /// Type alias for menu build result.
-pub(crate) type MenuBuildResult = Option<(HMENU, Vec<(u32, Box<dyn gpui::Action>)>)>;
+pub(crate) type MenuBuildResult = Option<(HMENU, Vec<(u16, Box<dyn gpui::Action>)>)>;
 
 pub(crate) unsafe fn build_menu(items: &[GpuiMenuItem]) -> MenuBuildResult {
     let hmenu = unsafe { CreatePopupMenu().ok() }?;
@@ -283,9 +291,9 @@ pub(crate) unsafe fn build_menu(items: &[GpuiMenuItem]) -> MenuBuildResult {
 unsafe fn build_menu_items(
     hmenu: HMENU,
     items: &[GpuiMenuItem],
-    start_id: u32,
-    actions: &mut Vec<(u32, Box<dyn gpui::Action>)>,
-) -> Result<u32, ()> {
+    start_id: u16,
+    actions: &mut Vec<(u16, Box<dyn gpui::Action>)>,
+) -> Result<u16, ()> {
     let mut current_id = start_id;
 
     for item in items {
@@ -296,7 +304,11 @@ unsafe fn build_menu_items(
                 }
             }
             GpuiMenuItem::Action { name, action, .. } => {
-                current_id = current_id.checked_add(1).ok_or(())?;
+                current_id = current_id.saturating_add(1);
+                if current_id > MAX_MENU_ITEMS {
+                    warn!("Menu item limit reached, truncating remaining items");
+                    break;
+                }
                 let wide_name = encode_wide(name.as_ref());
                 let result = unsafe {
                     AppendMenuW(

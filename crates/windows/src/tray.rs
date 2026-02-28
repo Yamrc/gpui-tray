@@ -5,6 +5,7 @@ use log::{debug, error};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 use windows::Win32::Foundation::{FALSE, HWND, TRUE};
 use windows::Win32::UI::Shell::*;
 use windows::Win32::UI::WindowsAndMessaging::RegisterWindowMessageW;
@@ -18,6 +19,64 @@ use crate::window::{
 
 static TRAY_COUNTER: AtomicU32 = AtomicU32::new(0);
 static WM_TASKBAR_RESTART: AtomicU32 = AtomicU32::new(0);
+
+/// Global storage for tray state to handle taskbar restart.
+/// Stores (hwnd as isize, tray_id, tray_data, hicon) for thread-safe access.
+static TRAY_STATE: Mutex<Option<(isize, u32, Arc<Mutex<Option<Tray>>>, isize)>> = Mutex::new(None);
+
+/// Re-registers the tray icon when taskbar restarts.
+pub(crate) fn reregister_tray_icon(hwnd: HWND) {
+    let hwnd_value = hwnd.0 as isize;
+    if let Ok(state) = TRAY_STATE.lock() {
+        if let Some((stored_hwnd, tray_id, tray_arc, hicon)) = state.as_ref() {
+            if *stored_hwnd == hwnd_value {
+                if let Ok(tray_guard) = tray_arc.lock() {
+                    if let Some(tray) = tray_guard.as_ref() {
+                        do_reregister_icon(hwnd, *tray_id, tray, *hicon);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn do_reregister_icon(hwnd: HWND, tray_id: u32, tray: &Tray, hicon_value: isize) {
+    let mut flags = NIF_MESSAGE;
+    let mut sz_tip: [u16; 128] = [0; 128];
+    let mut hicon = windows::Win32::UI::WindowsAndMessaging::HICON(std::ptr::null_mut());
+
+    if let Some(tooltip) = &tray.tooltip {
+        flags |= NIF_TIP;
+        let wide_tip = encode_wide(tooltip.as_ref());
+        for (i, &ch) in wide_tip.iter().take(127).enumerate() {
+            sz_tip[i] = ch;
+        }
+    }
+
+    if hicon_value != 0 {
+        hicon = windows::Win32::UI::WindowsAndMessaging::HICON(hicon_value as *mut _);
+        flags |= NIF_ICON;
+        debug!("Using existing icon for reregister");
+    }
+
+    let nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        uFlags: flags,
+        hWnd: hwnd,
+        uID: tray_id,
+        uCallbackMessage: WM_USER_TRAYICON,
+        hIcon: hicon,
+        szTip: sz_tip,
+        ..unsafe { std::mem::zeroed() }
+    };
+
+    let result = unsafe { Shell_NotifyIconW(NIM_ADD, &nid) };
+    if result == TRUE {
+        debug!("Tray icon reregistered successfully");
+    } else {
+        error!("Failed to reregister tray icon");
+    }
+}
 
 /// Returns the TaskbarCreated message ID, registering it if necessary.
 ///
@@ -57,7 +116,7 @@ pub(crate) struct WindowsTray {
     tray_id: u32,
     registered: bool,
     visible: bool,
-    current_tray: Option<Tray>,
+    current_tray: Arc<Mutex<Option<Tray>>>,
     icon: Option<Icon>,
 }
 
@@ -72,7 +131,7 @@ impl WindowsTray {
             tray_id,
             registered: false,
             visible: false,
-            current_tray: None,
+            current_tray: Arc::new(Mutex::new(None)),
             icon: None,
         }
     }
@@ -99,7 +158,7 @@ impl WindowsTray {
             if !items.is_empty()
                 && let Some((hmenu, actions)) = unsafe { build_menu(&items) }
             {
-                let actions_map: HashMap<u32, Box<dyn gpui::Action>> =
+                let actions_map: HashMap<u16, Box<dyn gpui::Action>> =
                     actions.into_iter().collect();
                 set_menu_actions(Some(Rc::new(actions_map)));
                 set_window_menu(self.hwnd, Some(hmenu));
@@ -187,7 +246,8 @@ impl PlatformTray for WindowsTray {
             set_menu_actions(None);
             self.registered = false;
             self.visible = false;
-            self.current_tray = None;
+            *self.current_tray.lock().unwrap() = None;
+            *TRAY_STATE.lock().unwrap() = None;
             return Ok(());
         }
 
@@ -201,7 +261,18 @@ impl PlatformTray for WindowsTray {
             self.add_or_update_tray_icon(tray, true)?;
         }
 
-        self.current_tray = Some(tray.clone());
+        *self.current_tray.lock().unwrap() = Some(tray.clone());
+        let hicon_value = self
+            .icon
+            .as_ref()
+            .map(|i| i.as_hicon().0 as isize)
+            .unwrap_or(0);
+        *TRAY_STATE.lock().unwrap() = Some((
+            self.hwnd.0 as isize,
+            self.tray_id,
+            self.current_tray.clone(),
+            hicon_value,
+        ));
         Ok(())
     }
 
@@ -216,7 +287,8 @@ impl PlatformTray for WindowsTray {
 
         self.registered = false;
         self.visible = false;
-        self.current_tray = None;
+        *self.current_tray.lock().unwrap() = None;
+        *TRAY_STATE.lock().unwrap() = None;
 
         Ok(())
     }
