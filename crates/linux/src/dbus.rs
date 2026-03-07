@@ -8,37 +8,31 @@ use crate::icon::Pixmap;
 
 const STATUS_NOTIFIER_ITEM_PATH: &str = "/StatusNotifierItem";
 const DBUS_MENU_PATH: &str = "/MenuBar";
+const STATUS_NOTIFIER_ITEM_IFACE: &str = "org.kde.StatusNotifierItem";
+const DBUS_MENU_IFACE: &str = "com.canonical.dbusmenu";
 const STATUS_NOTIFIER_WATCHER: &str = "org.kde.StatusNotifierWatcher";
 const STATUS_NOTIFIER_WATCHER_PATH: &str = "/StatusNotifierWatcher";
 
-// Type aliases for complex D-Bus types
 pub(crate) type PixmapData = Vec<u8>;
 pub(crate) type PixmapTuple = (i32, i32, PixmapData);
 pub(crate) type Tooltip = (String, Vec<PixmapTuple>, String, String);
 pub(crate) type LayoutItem = (i32, HashMap<String, Value<'static>>, Vec<Value<'static>>);
 pub(crate) type LayoutResult = (u32, LayoutItem);
 
-/// Events sent from D-Bus thread to main thread
 #[derive(Debug, Clone)]
 pub(crate) enum TrayEvent {
-    /// Left click
     Activate { x: i32, y: i32 },
-    /// Middle click
     SecondaryActivate { x: i32, y: i32 },
-    /// Right click (context menu)
     ContextMenu { x: i32, y: i32 },
-    /// Menu item clicked
     MenuClicked { id: i32 },
 }
 
-/// Shared state for StatusNotifierItem
 pub(crate) struct ItemState {
     pub title: String,
     pub tooltip: String,
     pub icon: Option<Vec<Pixmap>>,
 }
 
-/// StatusNotifierItem D-Bus interface
 pub(crate) struct StatusNotifierItem {
     state: Arc<Mutex<ItemState>>,
     event_sender: std::sync::mpsc::Sender<TrayEvent>,
@@ -109,10 +103,10 @@ impl StatusNotifierItem {
     fn tooltip(&self) -> Tooltip {
         let state = self.state.lock().unwrap();
         (
-            String::new(),         // icon_name
-            Vec::new(),            // icon_pixmap
-            state.tooltip.clone(), // title
-            String::new(),         // description
+            String::new(),
+            Vec::new(),
+            state.tooltip.clone(),
+            String::new(),
         )
     }
 
@@ -164,23 +158,18 @@ enum MenuItemType {
 pub(crate) struct MenuState {
     items: HashMap<i32, MenuItem>,
     next_id: i32,
+    revision: u32,
 }
 
 impl MenuState {
     pub fn new() -> Self {
-        let mut items = HashMap::new();
-        items.insert(
-            0,
-            MenuItem {
-                id: 0,
-                label: String::new(),
-                enabled: true,
-                visible: true,
-                item_type: MenuItemType::Standard,
-                children: Vec::new(),
-            },
-        );
-        Self { items, next_id: 1 }
+        let mut state = Self {
+            items: HashMap::new(),
+            next_id: 1,
+            revision: 1,
+        };
+        state.clear();
+        state
     }
 
     pub fn clear(&mut self) {
@@ -241,6 +230,14 @@ impl MenuState {
         }
 
         id
+    }
+
+    pub fn mark_updated(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    pub fn revision(&self) -> u32 {
+        self.revision
     }
 
     fn item_to_properties(
@@ -350,10 +347,11 @@ impl DBusMenu {
             "DBusMenu::get_layout called: parent_id={}, recursion_depth={}",
             parent_id, recursion_depth
         );
+
         let state = self.state.lock().unwrap();
         let layout = state.build_layout(parent_id, recursion_depth, &property_names);
-        debug!("DBusMenu::get_layout returning {} children", layout.1.len());
-        (0, layout)
+        debug!("DBusMenu::get_layout returning children={}", layout.2.len());
+        (state.revision(), layout)
     }
 
     fn get_group_properties(
@@ -408,7 +406,7 @@ impl DBusMenu {
 }
 
 pub(crate) struct DbusService {
-    _connection: Arc<Connection>,
+    connection: Arc<Connection>,
 }
 
 impl DbusService {
@@ -435,16 +433,65 @@ impl DbusService {
             .at(STATUS_NOTIFIER_ITEM_PATH, item)?;
         connection.object_server().at(DBUS_MENU_PATH, menu)?;
 
-        let proxy = zbus::blocking::Proxy::new(
-            &connection,
-            STATUS_NOTIFIER_WATCHER,
-            STATUS_NOTIFIER_WATCHER_PATH,
-            STATUS_NOTIFIER_WATCHER,
-        )?;
-        proxy.call_method("RegisterStatusNotifierItem", &(service_name,))?;
+        register_status_notifier_item(&connection, service_name.as_str())?;
 
-        Ok(Self {
-            _connection: connection,
-        })
+        Ok(Self { connection })
     }
+
+    pub fn notify_updated(&self, menu_revision: u32) -> Result<(), zbus::Error> {
+        self.connection.emit_signal(
+            None::<&str>,
+            STATUS_NOTIFIER_ITEM_PATH,
+            STATUS_NOTIFIER_ITEM_IFACE,
+            "NewIcon",
+            &(),
+        )?;
+
+        self.connection.emit_signal(
+            None::<&str>,
+            STATUS_NOTIFIER_ITEM_PATH,
+            STATUS_NOTIFIER_ITEM_IFACE,
+            "NewToolTip",
+            &(),
+        )?;
+
+        self.connection.emit_signal(
+            None::<&str>,
+            STATUS_NOTIFIER_ITEM_PATH,
+            STATUS_NOTIFIER_ITEM_IFACE,
+            "NewTitle",
+            &(),
+        )?;
+
+        self.connection.emit_signal(
+            None::<&str>,
+            DBUS_MENU_PATH,
+            DBUS_MENU_IFACE,
+            "LayoutUpdated",
+            &(menu_revision, 0i32),
+        )?;
+
+        debug!("dbus notify_updated: menu_revision={menu_revision}");
+        Ok(())
+    }
+}
+
+fn register_status_notifier_item(
+    connection: &Connection,
+    service_name: &str,
+) -> Result<(), zbus::Error> {
+    let proxy = zbus::blocking::Proxy::new(
+        connection,
+        STATUS_NOTIFIER_WATCHER,
+        STATUS_NOTIFIER_WATCHER_PATH,
+        STATUS_NOTIFIER_WATCHER,
+    )?;
+
+    if let Err(err) = proxy.call_method("RegisterStatusNotifierItem", &(STATUS_NOTIFIER_ITEM_PATH,))
+    {
+        debug!("RegisterStatusNotifierItem by path failed: {err}; fallback to service name");
+        proxy.call_method("RegisterStatusNotifierItem", &(service_name,))?;
+    }
+
+    Ok(())
 }
