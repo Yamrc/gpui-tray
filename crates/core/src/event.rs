@@ -1,4 +1,4 @@
-use gpui::*;
+use nekowg::*;
 
 #[derive(Clone, PartialEq, Debug, Action)]
 #[action(namespace = gpui_tray, no_json)]

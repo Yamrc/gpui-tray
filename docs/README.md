@@ -1,6 +1,6 @@
 # GPUI Tray
 
-A cross-platform system tray library for [GPUI](https://github.com/zed-industries/zed).
+A cross-platform system tray library for [NekoWG](https://github.com/NeoNekos/NekoWG).
 
 > **Heads up!** I don't have the bandwidth to thoroughly test this library, so there might be all sorts of weird bugs lurking around. If you run into any issues, please file an issue and I'll try to fix it when I can :3
 
@@ -18,16 +18,16 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-gpui-tray = { git = "https://github.com/Yamrc/gpui-tray.git" }
+nekowg-tray = { git = "https://github.com/Yamrc/nekowg-tray.git" }
 ```
 
 Basic usage:
 
 ```rust
-use gpui_tray::{Tray, TrayAppContext};
+use nekowg_tray::{Tray, TrayAppContext};
 
 fn main() {
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         cx.activate(true);
         
         cx.set_tray(
@@ -78,7 +78,7 @@ cx.update_tray(|tray| {
 cx.remove_tray()?;
 ```
 
-More [examples](../crates/gpui-tray/examples/)
+More [examples](../crates/nekowg-tray/examples/)
 
 ## Contributing
 

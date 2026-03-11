@@ -1,13 +1,13 @@
 [package]
-name = "gpui-tray-macos"
+name = "tray-macos"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-gpui.workspace = true
-gpui-tray-core.workspace = true
+nekowg.workspace = true
+tray-core.workspace = true
 image.workspace = true
 log.workspace = true
 objc2.workspace = true

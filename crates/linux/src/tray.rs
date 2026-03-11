@@ -1,14 +1,14 @@
 use crate::dbus::{DbusService, ItemState, MenuState, TrayEvent};
 use crate::icon::Icon;
-use gpui::{Action, MenuItem, MouseButton, Point};
-use gpui_tray_core::platform_trait::PlatformTray;
-use gpui_tray_core::{BackendError, ClickEvent, Error, Result, RuntimeEvent, Tray};
 use log::{debug, error};
+use nekowg::{Action, MenuItem, MouseButton, Point};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
+use tray_core::platform_trait::PlatformTray;
+use tray_core::{BackendError, ClickEvent, Error, Result, RuntimeEvent, Tray};
 
 enum BackendCommand {
     SetTray {

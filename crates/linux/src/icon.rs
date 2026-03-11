@@ -1,5 +1,5 @@
-use gpui_tray_core::Error;
 use std::sync::Arc;
+use tray_core::Error;
 use zbus::zvariant::{Structure, StructureBuilder, Type};
 
 const ICON_SIZES: [u32; 4] = [16, 24, 32, 48];
@@ -38,7 +38,7 @@ pub(crate) struct Icon {
 }
 
 impl Icon {
-    pub fn from_image(image: &gpui::Image) -> Result<Self, Error> {
+    pub fn from_image(image: &nekowg::Image) -> Result<Self, Error> {
         let img = image::load_from_memory(&image.bytes).map_err(|_| Error::InvalidIcon)?;
 
         let mut pixmaps = Vec::with_capacity(ICON_SIZES.len());

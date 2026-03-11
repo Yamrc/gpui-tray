@@ -1,7 +1,7 @@
 #![cfg(target_os = "linux")]
 
-use gpui_tray_core::Result;
-use gpui_tray_core::platform_trait::PlatformTray;
+use tray_core::Result;
+use tray_core::platform_trait::PlatformTray;
 
 mod dbus;
 mod icon;

@@ -1,10 +1,11 @@
 //! Icon loading example - demonstrates different ways to load icons.
 
-use gpui::{App, Application, Image, ImageFormat};
-use gpui_tray::{Tray, TrayAppContext};
+use nekowg::{App, Image, ImageFormat};
+use nekowg_platform::application;
+use nekowg_tray::{Tray, TrayAppContext};
 
 fn main() {
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
         cx.activate(true);
 

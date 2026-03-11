@@ -1,5 +1,5 @@
 [package]
-name = "gpui-tray"
+name = "nekowg-tray"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,18 +7,19 @@ description.workspace = true
 license.workspace = true
 
 [dependencies]
-gpui.workspace = true
-gpui-tray-core.workspace = true
+nekowg.workspace = true
+nekowg_platform.workspace = true
+tray-core.workspace = true
 log.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
-gpui-tray-windows = { path = "../windows" }
+tray-windows = { path = "../windows" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-gpui-tray-macos = { path = "../macos" }
+tray-macos = { path = "../macos" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-gpui-tray-linux = { path = "../linux" }
+tray-linux = { path = "../linux" }
 
 # For example
 [dev-dependencies]

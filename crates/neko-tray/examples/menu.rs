@@ -1,12 +1,13 @@
 //! Menu example - shows how to create a context menu.
 
-use gpui::{App, Application, Image, ImageFormat, MenuItem, actions};
-use gpui_tray::{Tray, TrayAppContext};
+use nekowg::{App, Image, ImageFormat, MenuItem, actions};
+use nekowg_platform::application;
+use nekowg_tray::{Tray, TrayAppContext};
 
 actions!(menu_example, [Open, Settings, Quit]);
 
 fn main() {
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
         cx.activate(true);
 

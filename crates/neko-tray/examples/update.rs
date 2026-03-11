@@ -1,12 +1,13 @@
 //! Update example - dynamically changing tray properties with UI controls.
 
-use gpui::{
-    App, Application, Context, Div, Image, ImageFormat, MenuItem, Stateful, Window, WindowOptions,
-    actions, div, prelude::*,
-};
-use gpui_tray::{Tray, TrayAppContext};
-use gpui_tray_core::{ClickEvent, DoubleClickEvent};
 use log::info;
+use nekowg::{
+    App, Context, Div, Image, ImageFormat, MenuItem, Stateful, Window, WindowOptions, actions, div,
+    prelude::*,
+};
+use nekowg_platform::application;
+use nekowg_tray::{Tray, TrayAppContext};
+use tray_core::{ClickEvent, DoubleClickEvent};
 
 actions!(
     update_example,
@@ -19,14 +20,14 @@ struct AppState {
     use_png: bool,
 }
 
-impl gpui::Global for AppState {}
+impl nekowg::Global for AppState {}
 
 struct Example;
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         let png_icon = Image::from_bytes(
             ImageFormat::Png,
             include_bytes!("image/app-icon.png").to_vec(),
@@ -130,16 +131,16 @@ impl Render for Example {
                 .id(id)
                 .py_0p5()
                 .px_3()
-                .bg(gpui::black())
+                .bg(nekowg::black())
                 .rounded_xs()
-                .active(|this| this.bg(gpui::black().opacity(0.8)))
-                .text_color(gpui::white())
+                .active(|this| this.bg(nekowg::black().opacity(0.8)))
+                .text_color(nekowg::white())
         }
 
         let app_state = cx.global::<AppState>();
 
         div()
-            .bg(gpui::white())
+            .bg(nekowg::white())
             .flex()
             .flex_col()
             .gap_4()

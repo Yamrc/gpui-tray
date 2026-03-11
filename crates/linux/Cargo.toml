@@ -1,13 +1,13 @@
 [package]
-name = "gpui-tray-linux"
+name = "tray-linux"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [dependencies]
-gpui.workspace = true
-gpui-tray-core.workspace = true
+nekowg.workspace = true
+tray-core.workspace = true
 image.workspace = true
 log.workspace = true
 

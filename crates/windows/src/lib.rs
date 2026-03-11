@@ -8,8 +8,8 @@
 mod icon;
 mod tray;
 
-use gpui_tray_core::Result;
-use gpui_tray_core::platform_trait::PlatformTray;
+use tray_core::Result;
+use tray_core::platform_trait::PlatformTray;
 
 /// Creates a new Windows platform tray implementation.
 pub fn create() -> Result<Box<dyn PlatformTray>> {

@@ -1,10 +1,6 @@
 use crate::icon::{DecodedIcon, OwnedIcon, create_hicon, decode_icon};
-use gpui::{Action, MenuItem, MouseButton, Point};
-use gpui_tray_core::platform_trait::PlatformTray;
-use gpui_tray_core::{
-    BackendError, ClickEvent, DoubleClickEvent, Error, Result, RuntimeEvent, Tray,
-};
 use log::debug;
+use nekowg::{Action, MenuItem, MouseButton, Point};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -13,6 +9,8 @@ use std::sync::Mutex;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::Duration;
+use tray_core::platform_trait::PlatformTray;
+use tray_core::{BackendError, ClickEvent, DoubleClickEvent, Error, Result, RuntimeEvent, Tray};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, TRUE, WPARAM};
 use windows::Win32::UI::Shell::{
     NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
@@ -659,7 +657,7 @@ fn encode_wide<S: AsRef<OsStr>>(s: S) -> Vec<u16> {
     s.as_ref().encode_wide().chain(std::iter::once(0)).collect()
 }
 
-fn image_key(image: &gpui::Image) -> u64 {
+fn image_key(image: &nekowg::Image) -> u64 {
     let mut hasher = DefaultHasher::new();
     image.bytes.hash(&mut hasher);
     hasher.finish()

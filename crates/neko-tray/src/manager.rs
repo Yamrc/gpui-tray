@@ -1,17 +1,17 @@
-use gpui::{App, AsyncApp, Global, Task};
-use gpui_tray_core::platform_trait::PlatformTray;
-use gpui_tray_core::{Error, Result, RuntimeEvent, Tray};
+use nekowg::{App, AsyncApp, Global, Task};
 use std::sync::Arc;
 use std::time::Duration;
+use tray_core::platform_trait::PlatformTray;
+use tray_core::{Error, Result, RuntimeEvent, Tray};
 
 #[cfg(target_os = "windows")]
-use gpui_tray_windows as platform_impl;
+use tray_windows as platform_impl;
 
 #[cfg(target_os = "macos")]
-use gpui_tray_macos as platform_impl;
+use tray_macos as platform_impl;
 
 #[cfg(target_os = "linux")]
-use gpui_tray_linux as platform_impl;
+use tray_linux as platform_impl;
 
 struct TrayRuntime {
     backend: Arc<dyn PlatformTray>,
@@ -49,12 +49,7 @@ fn spawn_event_pump(cx: &mut App, backend: Arc<dyn PlatformTray>) -> Task<()> {
                     match backend.try_recv_event() {
                         Ok(Some(RuntimeEvent::Action(action))) => {
                             log::debug!("dispatching backend action {}", action.name());
-                            if cx
-                                .update(|app: &mut App| app.dispatch_action(action.as_ref()))
-                                .is_err()
-                            {
-                                return;
-                            }
+                            cx.update(|app: &mut App| app.dispatch_action(action.as_ref()));
                         }
                         Ok(None) => break,
                         Err(Error::RuntimeClosed) => return,

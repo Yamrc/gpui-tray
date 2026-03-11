@@ -1,5 +1,5 @@
-use gpui_tray_core::{BackendError, Error, Result};
 use log::debug;
+use tray_core::{BackendError, Error, Result};
 use windows::Win32::Graphics::Gdi::{
     BITMAPINFO, BITMAPINFOHEADER, CreateBitmap, CreateDIBSection, DIB_RGB_COLORS, DeleteObject,
     GetDC, ReleaseDC,
@@ -24,7 +24,7 @@ impl Drop for OwnedIcon {
     }
 }
 
-pub(crate) fn decode_icon(image: &gpui::Image) -> Result<DecodedIcon> {
+pub(crate) fn decode_icon(image: &nekowg::Image) -> Result<DecodedIcon> {
     let start = std::time::Instant::now();
     debug!(
         "decode start, bytes={}, format={:?}",

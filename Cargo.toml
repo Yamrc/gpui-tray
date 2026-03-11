@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "crates/core",
-    "crates/gpui-tray",
+    "crates/neko-tray",
     "crates/windows",
     "crates/macos",
     "crates/linux",
@@ -9,20 +9,21 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 authors = ["Yamrc <yamrci@outlook.com>"]
-description = "Cross-platform tray lib for gpui"
+description = "Cross-platform tray lib for nekowg"
 license = "MPL-2.0"
 
 [workspace.dependencies]
-gpui = "0.2.2"
+nekowg = { git = "https://github.com/NeoNekos/NekoWG.git", branch = "master", version = "0.2.2"}
+nekowg_platform = { git = "https://github.com/NeoNekos/NekoWG.git", branch = "master", version = "0.1.0"}
 thiserror = "2.0"
 image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "ico", "webp"]}
 log = "0.4.29"
 serde = "1.0.228"
 
-gpui-tray-core = { path = "crates/core" }
+tray-core = { path = "crates/core" }
 
 windows = { version = "0.62", features = [
     "Win32_Foundation",

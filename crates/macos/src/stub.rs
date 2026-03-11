@@ -2,9 +2,9 @@
 //!
 //! This is a placeholder implementation that logs warnings.
 
-use gpui::App;
-use gpui_tray_core::platform_trait::PlatformTray;
-use gpui_tray_core::{Result, Tray};
+use nekowg::App;
+use tray_core::platform_trait::PlatformTray;
+use tray_core::{Result, Tray};
 use log::warn;
 
 pub struct MacosTrayStub;

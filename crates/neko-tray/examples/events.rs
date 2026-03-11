@@ -1,16 +1,17 @@
 //! Events example - handling tray click events.
 
-use gpui::{App, Application, Image, ImageFormat, actions};
-use gpui_tray::{Tray, TrayAppContext};
-use gpui_tray_core::{ClickEvent, DoubleClickEvent};
 use log::info;
+use nekowg::{App, Image, ImageFormat, actions};
+use nekowg_platform::application;
+use nekowg_tray::{Tray, TrayAppContext};
+use tray_core::{ClickEvent, DoubleClickEvent};
 
 actions!(events_example, [ShowWindow]);
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
-    Application::new().run(|cx: &mut App| {
+    application().run(|cx: &mut App| {
         cx.activate(true);
 
         // Register click event handlers
@@ -35,9 +36,9 @@ fn on_tray_click(event: &ClickEvent, _cx: &mut App) {
     );
 
     match event.button {
-        gpui::MouseButton::Left => println!("Left click!"),
-        gpui::MouseButton::Right => println!("Right click!"),
-        gpui::MouseButton::Middle => println!("Middle click!"),
+        nekowg::MouseButton::Left => println!("Left click!"),
+        nekowg::MouseButton::Right => println!("Right click!"),
+        nekowg::MouseButton::Middle => println!("Middle click!"),
         _ => {}
     }
 }

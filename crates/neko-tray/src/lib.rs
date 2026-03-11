@@ -6,7 +6,7 @@
 //! # Quick Start
 //!
 //! ```rust
-//! use gpui_tray::{Tray, TrayAppContext};
+//! use nekowg_tray::{Tray, TrayAppContext};
 //!
 //! // Set a tray icon
 //! cx.set_tray(
@@ -24,7 +24,7 @@
 //! cx.remove_tray();
 //! ```
 
-pub use gpui_tray_core::*;
+pub use tray_core::*;
 
 mod manager;
 
